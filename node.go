@@ -22,6 +22,13 @@ func newEmptyNode() *Node{
 	return &Node{}
 }
 
+func NewNodeForSerialization(items []*Item, childNodes []pgnum) (*Node){
+	return &Node{
+		childNodes: childNodes,
+		items: items,
+	}
+}
+
 func newItem(key []byte,value []byte) *Item{
 	return &Item{
 		key: key,
@@ -155,38 +162,55 @@ func (n *Node) deserialize(buf []byte) {
 	}
 }
 
-func (n *Node) searchNode(key []byte) (*Node,int,error) {
-	node,index,err:=searchNodeRec(n,key)
+
+// searchNode searches for a key inside the tree. Once the key is found, the node and the correct index are returned
+// so the key itself can be accessed in the following way node[index]. A list of the parent nodes is also returned.
+// If the key isn't found, we have 2 options. If mode is false, it means we expect searchNode
+// to find the key. If mode is true, then searchNode is used to locate where a new key should be
+// inserted so the position is returned.
+
+func (n *Node) searchNode(key []byte, mode bool) (bool, *Node, int, []int, []*Node, error) {
+
+	parentIndices := []int{}
+	parents :=[]*Node{}
+	wasFound,node,index,parentIndices,parents,err:=searchNodeRec(n,key,parentIndices,parents,mode)
 
 	if err!=nil{
-		return nil,-1,err
+		return false,nil,-1,[]int{},[]*Node{},err
 	}
 	
-	return node,index,nil
+	return wasFound,node,index,parentIndices,parents,nil
 }
 
-func searchNodeRec(node *Node , key []byte) (*Node,int,error){
+func searchNodeRec(node *Node , key []byte,parentIndices []int, parents []*Node ,mode bool) (bool, *Node, int, []int, []*Node, error){
 	
 	// search for key in the node
 	found,index:=node.searchInNode(key)
+	// append index to parentIndices
+	parentIndices = append(parentIndices, index)
+	// append node to parentNodes
+	parents = append(parents, node)
 	if found{
-		return node,index,nil
+		return true,node,index,parentIndices,parents,nil
 	}
 
 	if node.isLeaf(){
 		// if the node is leaf and the key is not found => key does not exist
-		return nil,-1,nil
+		if mode{
+			return false,node,index,parentIndices,parents,nil
+		}
+		return false,nil,-1,[]int{},[]*Node{},nil
 	}
 
 	// fetch the child node where the key is present , from disk into memory
 	child,err:=node.getNode(node.childNodes[index])
 
 	if err!=nil{
-		return nil,-1,err
+		return false,nil,-1,[]int{},[]*Node{},err
 	}
 
 	// search in the child node
-	return searchNodeRec(child,key)
+	return searchNodeRec(child,key,parentIndices,parents,mode)
 
 }
 
@@ -209,4 +233,75 @@ func (n *Node) searchInNode(key []byte) (bool,int) {
 	}
 	// desiredKey is greater than all the keys in the node => it is in the last child node 
 	return false,len(n.items)
+}
+
+func (n *Node) insertInNode(item *Item, index int){
+	if index == len(n.items){
+		n.items = append(n.items, item)
+		return
+	}
+	// move all the items starting from index to right by one place
+	n.items=append(n.items[:index+1], n.items[index:]...)
+
+	//insert item at index
+	n.items[index]=item
+	return
+}
+
+func (n *Node) isOverPopulated() bool{
+	return n.dal.isOverPopulated(n)
+}
+
+func (n *Node) isUnderPopulated() bool{
+	return n.dal.isUnderPopulated(n)
+}
+
+func (n *Node) nodeSize() (int){	// returns size of each node
+	size:=0
+	size+=nodeHeaderSize			// size of Page Header
+
+	for i:= range n.items{
+		size+=n.itemSize(i)			// size of each Item
+	}
+	size+=pageNumSize				// size of last ChildNode
+	return size
+}
+
+func (n *Node) itemSize(i int) (int){
+	size:=0
+	size+=len(n.items[i].key)+1		// size of key
+	size+=len(n.items[i].value)+1	// size of value 
+	size+=2							// size of offset
+	size+=pageNumSize				// size of childNode
+	return size
+}
+
+func (n *Node) split(node *Node, parentSplitIndex int) {
+	splitIndex := node.dal.getSplitIndex(node)
+	
+	midItem:=node.items[splitIndex]
+
+	var newNode *Node
+	if node.isLeaf(){
+		newNode= n.writeNode(n.dal.newNode(node.items[splitIndex+1:],[]pgnum{}))
+		node.items=node.items[:splitIndex]
+	}else{
+		newNode=n.writeNode(n.dal.newNode(node.items[splitIndex+1:],node.childNodes[splitIndex+1:]))
+		node.items=node.items[:splitIndex]
+		node.childNodes=node.childNodes[:splitIndex+1]
+	}
+	n.insertInNode(midItem,parentSplitIndex)
+	if parentSplitIndex == len(n.childNodes){
+		n.childNodes = append(n.childNodes, newNode.pageNum)
+	}else{
+		n.childNodes=append(n.childNodes[:parentSplitIndex+1],n.childNodes[parentSplitIndex:]... )
+		n.childNodes[parentSplitIndex+1]=newNode.pageNum
+	}
+	n.writeNode(n)
+	n.writeNode(node)
+}
+
+func (n *Node) writeNode(node *Node) *Node{
+	node,_ = n.dal.writeNode(node)
+	return node
 }
