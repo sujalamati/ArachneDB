@@ -249,14 +249,23 @@ func (d *dal) isUnderPopulated(node *Node) bool {
 	return float32(node.nodeSize()) < d.minThreshold()
 }
 
+// returns the index where the split must occur , 
+// it also returns >0 when the node can spare an element and still be more than minimum size
+// else returns -1 -> indicating it cannot spare an element
 func (d *dal) getSplitIndex(node *Node) int{
 	size:=0
 	size+=nodeHeaderSize
 	for i:=0; i<len(node.items); i++{
 		size+=node.itemSize(i)
+		// if we have a big enough page size (more than minimum), and didn't reach the last node, which means we can
+		// spare an element
 		if float32(size) > d.minThreshold() && i<len(node.items){
 			return i + 1
 		}
 	}
 	return -1
+}
+
+func (d *dal) deleteNode(pageNum pgnum){
+	d.releasePage(pageNum)
 }

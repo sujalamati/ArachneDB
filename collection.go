@@ -1,8 +1,5 @@
 package main
 
-import "fmt"
-
-
 type Collection struct{
 	name []byte		// name of the Collection
 	rootPgNum pgnum	// page num where the root of B-Tree is stored
@@ -22,12 +19,12 @@ func (c *Collection) Find(key []byte) (*Item,error){
 	if err!=nil{
 		return nil,err
 	}
-	_,containingNode,index,_,_,err:=rootNode.searchNode(key,true)
-	if err!=nil{
-		return nil,err
-	}
+	_,containingNode,index,_,_,err:=rootNode.searchNode(key,false)
 	if index == -1{
 		return nil,nil
+	}
+	if err!=nil{
+		return nil,err
 	}
 	return containingNode.items[index],nil
 }
@@ -55,7 +52,6 @@ func (c *Collection) Put(key []byte , value []byte) error {
 	
 	wasFound,Node,index,parentIndices,parents,err:=root.searchNode(key,true)
 
-	fmt.Println(Node.pageNum,index)
 	if err!=nil{
 		return err
 	}
@@ -67,7 +63,6 @@ func (c *Collection) Put(key []byte , value []byte) error {
 		Node.insertInNode(item,index)
 	}
 
-	fmt.Println(Node)
 	Node.writeNode(Node)
 	
 	// Rebalance the tree, from bottom to top
@@ -77,7 +72,6 @@ func (c *Collection) Put(key []byte , value []byte) error {
 		insertIndex:=parentIndices[i]
 		
 		if node.isOverPopulated(){
-			fmt.Printf("node %d is overpopulated",node.pageNum)
 			pnode.split(node,insertIndex)
 		}
 	}
@@ -85,14 +79,8 @@ func (c *Collection) Put(key []byte , value []byte) error {
 	// Balancing the root
 	root = parents[0]
 	if root.isOverPopulated(){
-		fmt.Println("root is overpopulated")
-		fmt.Printf("max page no. %d",c.dal.maxPage)
 		newNode:=c.dal.newNode([]*Item{},[]pgnum{root.pageNum})
-		fmt.Printf("max page no. %d",c.dal.maxPage)
-		fmt.Println(root.pageNum)
-		fmt.Println(newNode.pageNum)
 		newNode.split(root,0)
-		fmt.Println(newNode)
 
 		newNode, err = c.dal.writeNode(newNode)
 		if err != nil {
@@ -103,4 +91,51 @@ func (c *Collection) Put(key []byte , value []byte) error {
 
 	return nil
 
+}
+
+func (c *Collection) Remove(key []byte) error{
+	root,err:=c.dal.getNode(c.rootPgNum)
+
+	if err!=nil{
+		return err
+	}
+	// locate the key in the b-tree
+	Found,node,index,parentIndices,parents,err:=root.searchNode(key,false)
+
+	if err!=nil{
+		return err
+	}
+
+	if !Found{
+		return nil
+	}
+
+	if node.isLeaf(){
+		node.deleteFromLeaf(index)
+	}else{
+		affectedNodes,affectedIndices,err:=node.deleteFromInternal(index)
+		if err!=nil{
+			return err
+		}
+		parentIndices=append(parentIndices, affectedIndices...)
+		parents=append(parents,affectedNodes...)
+	}
+	
+	for i:=len(parents)-2; i>=0; i--{
+		pnode:=parents[i]
+		node:=parents[i+1]
+		
+		if node.isUnderPopulated(){
+			err:=pnode.rebalance(node,parentIndices[i])
+			if err!=nil{
+				return err
+			}
+		}
+	}
+	rootNode:=parents[0]
+	if len(rootNode.items)==0 && len(rootNode.childNodes)>0{
+		c.rootPgNum=parents[1].pageNum
+		rootNode.deleteNode(rootNode.pageNum)
+	}
+	return nil
 }
