@@ -243,7 +243,6 @@ func (n *Node) insertInNode(item *Item, index int) {
 
 	//insert item at index
 	n.items[index] = item
-	return
 }
 
 func (n *Node) isOverPopulated() bool {
@@ -316,14 +315,16 @@ func (n *Node) deleteFromLeaf(index int) {
 }
 
 func (n *Node) canSpareKey() bool {
-	if n.dal.getSplitIndex(n) != -1 {
-		return true
-	}
-	return false
+	return n.dal.getSplitIndex(n) != -1
 }
 
 func (n *Node) deleteFromInternal(index int) ([]*Node, []int, error) {
 	childNode, err := n.getNode(n.childNodes[index])
+
+	if err!=nil{
+		return nil,nil,err
+	}
+
 	var affectedNodes []*Node = []*Node{childNode}
 	var affectedIndices []int = []int{}
 

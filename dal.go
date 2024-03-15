@@ -11,7 +11,7 @@ type pgnum uint64
 type dal struct{
 	file *os.File
 	pageSize int
-
+	masterCollection *Collection	//root node of master collection
 	minFillPercent float32
 	maxFillPercent float32
 	*freelist		//type embedding freelist in dal
@@ -47,6 +47,7 @@ func newDal(path string, options *Options) (*dal,error){
 		pageSize: options.pageSize,				//Size of each Database Page
 		meta: newEmptyMeta(),					//initialize empty Meta struct
 
+		masterCollection: newEmptyCollection([]byte("Master"),0),
 		minFillPercent: options.MinFillPercent,
 		maxFillPercent: options.MaxFillPercent,
 
@@ -64,7 +65,8 @@ func newDal(path string, options *Options) (*dal,error){
 		dal.file=file
 
 		err=dal.readMeta()
-
+		dal.masterCollection.rootPgNum=dal.rootNode
+		dal.masterCollection.dal=dal
 		if err!=nil{
 			return nil,err
 		}
@@ -102,9 +104,10 @@ func newDal(path string, options *Options) (*dal,error){
 			return nil, err
 		}
 		dal.rootNode = collectionsNode.pageNum
+		dal.masterCollection.rootPgNum=dal.rootNode
+		dal.masterCollection.dal=dal
 
 		_,err=dal.writeMeta()
-
 		
 	}else{
 		return nil,err
@@ -117,7 +120,7 @@ func (d *dal) close() error {
 	if (d.file!=nil){
 		err := d.file.Close()
 		if err!=nil{
-			return fmt.Errorf("Could not close file: %s",err)	//if the file could not be closed,displays error
+			return fmt.Errorf("could not close file: %s",err)	//if the file could not be closed,displays error
 		}
 		d.file=nil
 	}
@@ -268,4 +271,34 @@ func (d *dal) getSplitIndex(node *Node) int{
 
 func (d *dal) deleteNode(pageNum pgnum){
 	d.releasePage(pageNum)
+}
+
+func (d *dal) createCollection(name []byte) (*Collection,error){
+	newNode,err:=d.writeNode(newEmptyNode())
+	if err!=nil{
+		return nil,err
+	}
+ 	collection:=newEmptyCollection(name,newNode.pageNum)
+	collection.dal=d
+	fmt.Println(collection.rootPgNum)
+ 	d.masterCollection.Put(name,[]byte{byte(collection.rootPgNum)})
+	return collection,nil
+}
+ 
+func (d *dal) getCollection(name []byte) (*Collection,error){
+	i,err:=d.masterCollection.Find(name)
+	if err!=nil{
+		return nil,err
+	}
+	if i==nil{
+		return nil,nil
+	}else{
+		collection:= newEmptyCollection(name,pgnum(i.value[0]))
+		collection.dal=d
+		return collection,nil
+	}
+}
+
+func (d *dal) deleteCollection(name []byte) (error){
+	return d.masterCollection.Remove(name)
 }
