@@ -1,10 +1,12 @@
-package main
+package ArachneDB
 
 type Collection struct{
 	name []byte		// name of the Collection
 	rootPgNum pgnum	// page num where the root of B-Tree is stored
 
-	dal *dal 		// type embedding dal into collection
+	// dal *dal 		// type embedding dal into collection
+
+	tx *tx			//associated transaction
 }
 
 func newEmptyCollection(name []byte,root pgnum) *Collection{
@@ -15,7 +17,7 @@ func newEmptyCollection(name []byte,root pgnum) *Collection{
 }
 
 func (c *Collection) Find(key []byte) (*Item,error){
-	rootNode,err:=c.dal.getNode(c.rootPgNum)
+	rootNode,err:=c.tx.getNode(c.rootPgNum)
 	if err!=nil{
 		return nil,err
 	}
@@ -30,22 +32,23 @@ func (c *Collection) Find(key []byte) (*Item,error){
 }
 
 func (c *Collection) Put(key []byte , value []byte) error {
+	
+	if !c.tx.write {
+		return writeInsideReadTxErr
+	}
+
 	item:=newItem(key,value)
 	var root *Node
 	var err error
 	if c.rootPgNum == 0{
-		root,err=c.dal.writeNode(c.dal.newNode([]*Item{item},[]pgnum{}))
-		if err!=nil{
-			return err
-		}
+		root = c.tx.writeNode(c.tx.newNode([]*Item{item},[]pgnum{}))
+		
 		c.rootPgNum=root.pageNum
 		return nil
 	}
 
 
-	root,err=c.dal.getNode(c.rootPgNum)
-
-
+	root,err=c.tx.getNode(c.rootPgNum)
 	if err!=nil{
 		return err
 	}
@@ -79,14 +82,17 @@ func (c *Collection) Put(key []byte , value []byte) error {
 	// Balancing the root
 	root = parents[0]
 	if root.isOverPopulated(){
-		newNode:=c.dal.newNode([]*Item{},[]pgnum{root.pageNum})
+		newNode:=c.tx.newNode([]*Item{},[]pgnum{root.pageNum})
 		newNode.split(root,0)
 
-		newNode, err = c.dal.writeNode(newNode)
-		if err != nil {
-			return err
+		newNode = c.tx.writeNode(newNode)
+		
+		if string(c.name)== "Master"{
+			c.tx.db.rootNode=newNode.pageNum
+		}else{
+			c.rootPgNum=newNode.pageNum
+			c.tx.db.masterCollection.Put(c.name,[]byte{byte(c.rootPgNum)})
 		}
-		c.rootPgNum=newNode.pageNum
 	}
 
 	return nil
@@ -94,7 +100,11 @@ func (c *Collection) Put(key []byte , value []byte) error {
 }
 
 func (c *Collection) Remove(key []byte) error{
-	root,err:=c.dal.getNode(c.rootPgNum)
+	if !c.tx.write {
+		return writeInsideReadTxErr
+	}
+	
+	root,err:=c.tx.getNode(c.rootPgNum)
 
 	if err!=nil{
 		return err

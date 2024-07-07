@@ -1,4 +1,4 @@
-package main
+package ArachneDB
 
 import (
 	"errors"
@@ -66,7 +66,7 @@ func newDal(path string, options *Options) (*dal,error){
 
 		err=dal.readMeta()
 		dal.masterCollection.rootPgNum=dal.rootNode
-		dal.masterCollection.dal=dal
+		// dal.masterCollection.dal=dal
 		if err!=nil{
 			return nil,err
 		}
@@ -105,9 +105,10 @@ func newDal(path string, options *Options) (*dal,error){
 		}
 		dal.rootNode = collectionsNode.pageNum
 		dal.masterCollection.rootPgNum=dal.rootNode
-		dal.masterCollection.dal=dal
+		// dal.masterCollection.dal=dal
 
-		_,err=dal.writeMeta()
+		_,_=dal.writeFreeList()
+		_,_=dal.writeMeta()
 		
 	}else{
 		return nil,err
@@ -204,7 +205,7 @@ func (d *dal) getNode(pageNum pgnum) (*Node,error){
 	node:=newEmptyNode()
 	node.deserialize(p.data)
 	node.pageNum=pageNum
-	node.dal = d
+	// node.dal = d
 	return node,nil
 }
 
@@ -227,14 +228,14 @@ func (d *dal) writeNode(n *Node) (*Node,error){
 	return n,nil
 }
 
-func (d *dal) newNode(items []*Item,childNodes []pgnum)(*Node){
-	node:=newEmptyNode()
-	node.items=items
-	node.childNodes=childNodes
-	node.dal=d
-	node.pageNum=d.getNextPage()
-	return node
-}
+// func (d *dal) newNode(items []*Item,childNodes []pgnum)(*Node){
+// 	node:=newEmptyNode()
+// 	node.items=items
+// 	node.childNodes=childNodes
+// 	// node.dal=d
+// 	node.pageNum=d.getNextPage()
+// 	return node
+// }
 
 func (d *dal) maxThreshold() float32 {
 	return d.maxFillPercent * float32(d.pageSize)
@@ -271,34 +272,4 @@ func (d *dal) getSplitIndex(node *Node) int{
 
 func (d *dal) deleteNode(pageNum pgnum){
 	d.releasePage(pageNum)
-}
-
-func (d *dal) createCollection(name []byte) (*Collection,error){
-	newNode,err:=d.writeNode(newEmptyNode())
-	if err!=nil{
-		return nil,err
-	}
- 	collection:=newEmptyCollection(name,newNode.pageNum)
-	collection.dal=d
-	fmt.Println(collection.rootPgNum)
- 	d.masterCollection.Put(name,[]byte{byte(collection.rootPgNum)})
-	return collection,nil
-}
- 
-func (d *dal) getCollection(name []byte) (*Collection,error){
-	i,err:=d.masterCollection.Find(name)
-	if err!=nil{
-		return nil,err
-	}
-	if i==nil{
-		return nil,nil
-	}else{
-		collection:= newEmptyCollection(name,pgnum(i.value[0]))
-		collection.dal=d
-		return collection,nil
-	}
-}
-
-func (d *dal) deleteCollection(name []byte) (error){
-	return d.masterCollection.Remove(name)
 }

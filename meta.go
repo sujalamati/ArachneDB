@@ -1,4 +1,4 @@
-package main
+package ArachneDB
 
 import "encoding/binary"
 

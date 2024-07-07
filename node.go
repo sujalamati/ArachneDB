@@ -1,4 +1,4 @@
-package main
+package ArachneDB
 
 import (
 	"bytes"
@@ -11,11 +11,13 @@ type Item struct {
 }
 
 type Node struct {
-	*dal // type embedding dal in node
+	// *dal // type embedding dal in node
 
 	pageNum    pgnum //each node is stored in one page
 	items      []*Item
 	childNodes []pgnum
+
+	tx *tx		//associated transaction
 }
 
 func newEmptyNode() *Node {
@@ -38,6 +40,14 @@ func newItem(key []byte, value []byte) *Item {
 
 func (n *Node) isLeaf() bool {
 	return len(n.childNodes) == 0
+}
+
+func(n *Node) getNode(pageNum pgnum) (*Node,error) {
+	return n.tx.getNode(pageNum)
+}
+
+func(n *Node) deleteNode(pageNum pgnum){
+	n.tx.deleteNode(pageNum)
 }
 
 func (n *Node) serialize(buf []byte) {
@@ -168,7 +178,7 @@ func (n *Node) deserialize(buf []byte) {
 // inserted so the position is returned.
 
 func (n *Node) searchNode(key []byte, mode bool) (bool, *Node, int, []int, []*Node, error) {
-
+	
 	parentIndices := []int{}
 	parents := []*Node{}
 	wasFound, node, index, parentIndices, parents, err := searchNodeRec(n, key, parentIndices, parents, mode)
@@ -246,11 +256,11 @@ func (n *Node) insertInNode(item *Item, index int) {
 }
 
 func (n *Node) isOverPopulated() bool {
-	return n.dal.isOverPopulated(n)
+	return n.tx.db.isOverPopulated(n)
 }
 
 func (n *Node) isUnderPopulated() bool {
-	return n.dal.isUnderPopulated(n)
+	return n.tx.db.isUnderPopulated(n)
 }
 
 func (n *Node) nodeSize() int { // returns size of each node
@@ -274,16 +284,16 @@ func (n *Node) itemSize(i int) int {
 }
 
 func (n *Node) split(node *Node, parentSplitIndex int) {
-	splitIndex := node.dal.getSplitIndex(node)
+	splitIndex := node.tx.db.getSplitIndex(node)
 
 	midItem := node.items[splitIndex]
 
 	var newNode *Node
 	if node.isLeaf() {
-		newNode = n.writeNode(n.dal.newNode(node.items[splitIndex+1:], []pgnum{}))
+		newNode = n.writeNode(n.tx.newNode(node.items[splitIndex+1:], []pgnum{}))
 		node.items = node.items[:splitIndex]
 	} else {
-		newNode = n.writeNode(n.dal.newNode(node.items[splitIndex+1:], node.childNodes[splitIndex+1:]))
+		newNode = n.writeNode(n.tx.newNode(node.items[splitIndex+1:], node.childNodes[splitIndex+1:]))
 		node.items = node.items[:splitIndex]
 		node.childNodes = node.childNodes[:splitIndex+1]
 	}
@@ -299,8 +309,7 @@ func (n *Node) split(node *Node, parentSplitIndex int) {
 }
 
 func (n *Node) writeNode(node *Node) *Node {
-	node, _ = n.dal.writeNode(node)
-	return node
+	return n.tx.writeNode(node)
 }
 
 func (n *Node) writeNodes(nodes ...*Node) {
@@ -315,7 +324,7 @@ func (n *Node) deleteFromLeaf(index int) {
 }
 
 func (n *Node) canSpareKey() bool {
-	return n.dal.getSplitIndex(n) != -1
+	return n.tx.db.getSplitIndex(n) != -1
 }
 
 func (n *Node) deleteFromInternal(index int) ([]*Node, []int, error) {
@@ -455,6 +464,6 @@ func merge(lNode, rNode, pNode *Node, index int) {
 		lNode.childNodes = append(lNode.childNodes, rNode.childNodes...)
 	}
 	pNode.writeNodes(pNode, lNode)
-	pNode.dal.deleteNode(rNode.pageNum)
+	pNode.deleteNode(rNode.pageNum)
 
 }
