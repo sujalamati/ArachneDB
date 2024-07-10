@@ -115,6 +115,15 @@ func (tx *tx) CreateCollection(name []byte) (*Collection,error){
  	tx.db.masterCollection.Put(name,[]byte{byte(collection.rootPgNum)})
 	return collection,nil
 }
+
+func (tx *tx) createCollection(collection *Collection) (*Collection,error){
+	collection.tx = tx
+	err := tx.db.masterCollection.Put(collection.name,[]byte{byte(collection.rootPgNum)})
+	if err!=nil{
+		return nil, err
+	}
+	return collection,nil
+}
  
 func (tx *tx) GetCollection(name []byte) (*Collection,error){
 	i,err:=tx.db.masterCollection.Find(name)
