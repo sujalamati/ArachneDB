@@ -5,9 +5,11 @@
 
 ArachneDB is a  Key-Value Store built from scratch using Golang taking care of necessary features such as concurrency, persistence and isolated transactions.
 
-## Installing
+I have also built APIs and a CLI to interact with the database.
 
-To start using ArachneDB, install Go and run `go get`:
+## Installing the package
+
+To start using ArachneDB as a package in your application, install Go and run `go get`:
 
 ```sh
 go get -u github.com/sujalamati/ArachneDB
@@ -17,7 +19,7 @@ go get -u github.com/sujalamati/ArachneDB
 ```go
 package main
 
-import "github.com/sujalamati/ArachneDB"
+import "github.com/sujalamati/ArachneDB/pkg"
 
 func main() {
 	path := "arachne.adb"
@@ -104,3 +106,64 @@ if err := collection.Remove(key); err != nil {
 }
 _ = tx.Commit()
 ```
+
+
+## API usage
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/sujalamati/ArachneDB/api"
+)
+
+func main() {
+
+	r := api.SetupRouter()
+	// Run the server
+	if err := r.Run(":8080"); err != nil {
+		fmt.Println("Failed to start server:", err)
+	}
+	
+}
+```
+### API endpoints
+The following APIs are available to interact with database:
+
+
+```json
+	POST("/username") request body : {"username": "string"}
+
+	GET("/user/get/collection/:username/:collection_name")
+	
+	POST("/user/create/collection") request body : {"username": "string", "collection_name": "string"}
+
+	POST("/user/delete/collection") request body : {"username": "string", "collection_name": "string"}
+
+	GET("/user/get/key/:username/:collection/:key")
+
+	POST("/user/delete/key") request body : {"username": "string", "collection": "string", "key": "string"}
+
+	POST("/user/create/key") request body : {"username": "string", "collection": "string", "key": "string", "value": "string"}
+```
+
+## CLI usage
+```go
+package main
+
+import (
+	"github.com/sujalamati/ArachneDB/cli"
+	tea "github.com/charmbracelet/bubbletea"
+	"os"
+	"fmt"
+)
+
+func main() {
+	p := tea.NewProgram(cli.InitialModel(), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Println("Error starting program:", err)
+		os.Exit(1)
+	}
+}
+```
+Note: start the api server before using the CLI
