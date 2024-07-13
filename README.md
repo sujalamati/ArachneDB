@@ -131,7 +131,7 @@ func main() {
 The following APIs are available to interact with database:
 
 
-```json
+```
 POST("/username") request body : {"username": "string"}
 
 GET("/user/get/collection/:username/:collection_name")
