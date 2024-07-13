@@ -127,25 +127,73 @@ func main() {
 	
 }
 ```
-### API endpoints
-The following APIs are available to interact with database:
+### API Endpoints
 
+1. **POST `/username`**
 
-```
-POST("/username") request body : {"username": "string"}
+   - **Description:** Use an existing database file or create a new one for the given username.
+   - **Request Body:**
+     ```json
+     {
+       "username": "string"
+     }
+     ```
+   
+2. **GET `/user/get/collection/:username/:collection_name`**
 
-GET("/user/get/collection/:username/:collection_name")
+   - **Description:** Check if a collection exists for the specified username and collection name.
 
-POST("/user/create/collection") request body : {"username": "string", "collection_name": "string"}
+3. **POST `/user/create/collection`**
 
-POST("/user/delete/collection") request body : {"username": "string", "collection_name": "string"}
+   - **Description:** Create a new collection.
+   - **Request Body:**
+     ```json
+     {
+       "username": "string",
+       "collection_name": "string"
+     }
+     ```
 
-GET("/user/get/key/:username/:collection/:key")
+4. **POST `/user/delete/collection`**
 
-POST("/user/delete/key") request body : {"username": "string", "collection": "string", "key": "string"}
+   - **Description:** Delete an existing collection.
+   - **Request Body:**
+     ```json
+     {
+       "username": "string",
+       "collection_name": "string"
+     }
+     ```
 
-POST("/user/create/key") request body : {"username": "string", "collection": "string", "key": "string", "value": "string"}
-```
+5. **GET `/user/get/key/:username/:collection/:key`**
+
+   - **Description:** Retrieve a specific key from the collection.
+
+6. **POST `/user/delete/key`**
+
+   - **Description:** Delete a key from the collection
+   - **Request Body:**
+     ```json
+     {
+       "username": "string",
+       "collection": "string",
+       "key": "string"
+     }
+     ```
+
+7. **POST `/user/create/key`**
+
+   - **Description:** Create a new key-value pair in the collection.
+   - **Request Body:**
+     ```json
+     {
+       "username": "string",
+       "collection": "string",
+       "key": "string",
+       "value": "string"
+     }
+     ```
+
 
 ## CLI usage
 ```go
