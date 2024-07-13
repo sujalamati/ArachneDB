@@ -132,19 +132,19 @@ The following APIs are available to interact with database:
 
 
 ```json
-	POST("/username") request body : {"username": "string"}
+POST("/username") request body : {"username": "string"}
 
-	GET("/user/get/collection/:username/:collection_name")
-	
-	POST("/user/create/collection") request body : {"username": "string", "collection_name": "string"}
+GET("/user/get/collection/:username/:collection_name")
 
-	POST("/user/delete/collection") request body : {"username": "string", "collection_name": "string"}
+POST("/user/create/collection") request body : {"username": "string", "collection_name": "string"}
 
-	GET("/user/get/key/:username/:collection/:key")
+POST("/user/delete/collection") request body : {"username": "string", "collection_name": "string"}
 
-	POST("/user/delete/key") request body : {"username": "string", "collection": "string", "key": "string"}
+GET("/user/get/key/:username/:collection/:key")
 
-	POST("/user/create/key") request body : {"username": "string", "collection": "string", "key": "string", "value": "string"}
+POST("/user/delete/key") request body : {"username": "string", "collection": "string", "key": "string"}
+
+POST("/user/create/key") request body : {"username": "string", "collection": "string", "key": "string", "value": "string"}
 ```
 
 ## CLI usage
